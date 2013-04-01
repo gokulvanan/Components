@@ -3,13 +3,16 @@ package org.simple.parser.excel;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -46,10 +49,11 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	private int startRow=-1;
 	private int startCol=-1;
 	private int maxNoOfRows=-1;
+	private String dateFormat=null;
 
 	private List<T> fileObjList=null;
 	private List<ErrorBean> errorList=null;
-	
+	Map<Integer,Map<String,Integer>> uniqueMap=null;
 	/**
 	 * Initialise parser configurations from {@link ParserDef} annotation file
 	 */
@@ -58,12 +62,10 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 			this.noOfColumns= props.noOfColumns();
 			this.noOfRows=props.noOfRows();
 			this.sheetNo=props.sheetNo();
-			this.sheetNo--;
 			this.startRow=props.startRow();
-			this.startRow--;
 			this.startCol=props.startCol();
-			this.startCol--;
 			this.maxNoOfRows=props.maxNoOfRows();
+			this.dateFormat=props.dateformat();
 		}catch (Exception e) {
 			throw new SimpleParserException("Error in configuration msg"+e.getMessage());
 		}
@@ -76,186 +78,12 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		try{
 			this.noOfColumns= Integer.parseInt(props.getProperty("NO_OF_COLUMNS", "-1"));
 			this.noOfRows=Integer.parseInt(props.getProperty("NO_OF_ROWS", "-1"));
-			this.sheetNo=Integer.parseInt(props.getProperty("SHEET_NO", "1"));
-			this.sheetNo--;
-			this.startRow=Integer.parseInt(props.getProperty("START_ROW", "1"));
-			this.startRow--;
-			this.startCol=Integer.parseInt(props.getProperty("START_COL", "1"));
-			this.startCol--;
+			this.sheetNo=Integer.parseInt(props.getProperty("SHEET_NO", "0"));
+			this.startRow=Integer.parseInt(props.getProperty("START_ROW", "0"));
+			this.startCol=Integer.parseInt(props.getProperty("START_COL", "0"));
 			this.maxNoOfRows=Integer.parseInt(props.getProperty("MAX_ROWS", "-1"));
 		}catch (Exception e) {
 			throw new SimpleParserException("Error in configuration msg"+e.getMessage());
-		}
-	}
-
-
-	public void parse(File fileObj, Class<T> ouptutDTOClass) throws SimpleParserException {
-		
-		InputStream in;
-		try
-		{
-			in = new FileInputStream(fileObj);
-		} catch (FileNotFoundException e1)
-		{
-			throw new SimpleParserException("Invalid File path");
-		}
-		if(noOfColumns == -1)	throw new SimpleParserException("No of Columns is manadatory for Excel parsing");
-		
-		Workbook w;
-		String fileName=fileObj.getName();
-		String[] ext= fileName.split("\\.");
-		String type = ext[ext.length-1];
-		
-		try
-		{
-			if(type.equalsIgnoreCase("xls"))	w = new HSSFWorkbook(in);
-			else								w = new XSSFWorkbook(in);	
-		}catch(IOException i)
-		{
-			throw new SimpleParserException("Error in parsing file using appache.poi lib.. File not a valid excel");
-		}
-		
-		
-		fileObjList= new ArrayList<T>();
-		errorList=new ArrayList<ErrorBean>();
-
-		Map<Integer,Field> flds= new HashMap<Integer,Field>();
-		Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
-        Map<Integer,CellFormatter> formatters = new HashMap<Integer, CellFormatter>();
-        Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
-		int maxIndex=0;
-		try
-		{
-			Field[] allFlds= ouptutDTOClass.getDeclaredFields();
-			for(Field fld : allFlds){
-				fld.setAccessible(true);
-				ColumnDef colDef =fld.getAnnotation(ColumnDef.class);
-				if(colDef == null) continue;
-				int index = colDef.index();
-				flds.put(index, fld);
-				validators.put(index,colDef.validators());
-                formatters.put(index, colDef.formatter().newInstance());
-                unique.put(index, colDef.unique());
-				maxIndex = (maxIndex < index) ? index : maxIndex;
-			}
-			
-		}catch (Exception e) {
-//			e.printStackTrace();
-			throw new SimpleParserException("Error in parsing annotations.. Error msg : "+e.getMessage());
-		}
-
-		if(maxIndex > noOfColumns) throw new SimpleParserException("Error in annoation configuration. Col index exceed noOf Columns declared");
-
-		Sheet sheet = w.getSheetAt(sheetNo);
-		noOfRows =(noOfRows == -1) ? sheet.getLastRowNum()+1 : noOfRows;
-	
-		int colWidth=this.noOfColumns-this.startCol;
-		
-		if(colWidth <= 0) throw new SimpleParserException("Error startCol value exceeds noOfColumns, Check ParserDef/Property file configuration ");
-			
-		Map<Integer,Map<String,Integer>> colMap = new HashMap<Integer, Map<String,Integer>>();
-		int actualRowCount=0;
-		L2: for (int i = startRow; i < this.noOfRows; i++)
-		{
-			ErrorBean err = new ErrorBean(i+1);
-			T obj;
-			try
-			{
-				obj = ouptutDTOClass.newInstance();
-			}
-			catch(Exception er)
-			{
-				throw new SimpleParserException("Error in creating class instace from input class Object using reflection.. Check JVM security settings");
-			}
-			
-			Row row = sheet.getRow(i);
-			if(row == null) 
-				continue L2; // ignore blank rows
-			int j=0;
-			int emptyCount=0;
-			try{
-				actualRowCount++;
-				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
-				{
-					int col=j+1;
-					Cell cell = row.getCell(j);
-					Field fld = flds.get(col);
-					boolean uniq = unique.get(col);
-					if(fld == null) continue L1;// ignore columns not mapped to DTO objects
-					String data=(cell == null) ? "" : getCellValAsString(cell);// added to prevent null pointer exception for unused columns
-
-					if(data.trim().isEmpty())
-					{
-						emptyCount++;
-					}
-					else{
-						if(uniq)// unique constraint check
-						{
-							Map<String,Integer> m = colMap.get(col);
-							if(m== null)
-							{	
-								m=new HashMap<String, Integer>();
-								m.put(data, 1);
-							}
-							else
-							{
-								if(m.containsKey(data))
-								{
-									err.addColError(new ColErrors(j+1, "Unique contraint violated"));// col error
-									continue L1;
-								}
-								else
-									m.put(data,1);
-							}
-							colMap.put(col, m);
-						}
-					}
-					Class<? extends CellValidator>[] validatorclses = validators.get(col);
-					for(Class<? extends CellValidator> validatorCls : validatorclses){
-						CellValidator validator = validatorCls.newInstance();
-						String errorMsg=validator.valid(data) ;
-						if(errorMsg  != null){// invalid case
-							err.addColError(new ColErrors(j+1, errorMsg));// col error
-							continue L1;
-						}
-					}
-					CellFormatter formatter = formatters.get(col);
-					data =  formatter.format(data);
-					fld.setAccessible(true);
-					fld.set(obj, typeConversion(fld.getType(),data));
-				}
-			}catch (Exception e) { // Added to coninute processing other rows
-				err.addColError(new ColErrors(j+1,e.getMessage()));
-				j=0;// make sure this obj is not added to fileObjList
-			}
-			
-			if(!err.hasErrors() )// completed full loop without error caseobject
-				this.fileObjList.add(obj);
-			else
-			{
-				if(emptyCount != colWidth){ // All col empty is not an error discard this row and process other rows
-					this.errorList.add(err);
-				}
-				else{
-					actualRowCount--;// empty row case
-				}
-				
-			}
-		}
-		
-		if(maxNoOfRows != -1 && maxNoOfRows < actualRowCount)
-			throw new SimpleParserException("Exceed maximun number("+maxNoOfRows+") of permitted rows ");
-
-	}
-
-	private String getCellValAsString(Cell cell) throws SimpleParserException {
-		switch(cell.getCellType()){
-			case Cell.CELL_TYPE_NUMERIC: 	return cell.getNumericCellValue()+"";
-			case Cell.CELL_TYPE_BLANK: 		return "";
-			case Cell.CELL_TYPE_BOOLEAN: 	return cell.getBooleanCellValue()+"";
-			case Cell.CELL_TYPE_ERROR: 		throw new SimpleParserException("Invalid Cell type");
-			case Cell.CELL_TYPE_FORMULA: 	return cell.getCellFormula();
-			default:						return cell.getStringCellValue();
 		}
 	}
 
@@ -272,24 +100,283 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		return (this.errorList.size() == 0);
 	}
 
+	public void parse(File fileObj, Class<T> ouptutDTOClass) throws SimpleParserException {
+
+		Workbook w = getWorkbook(fileObj);
+
+		fileObjList= new ArrayList<T>();
+		errorList=new ArrayList<ErrorBean>();
+
+		Map<Integer,Field> flds= new HashMap<Integer,Field>();
+		Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
+		Map<Integer,CellFormatter> formatters = new HashMap<Integer, CellFormatter>();
+		Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
+
+		initMaps(ouptutDTOClass,flds,validators,formatters,unique,false);
+
+		Sheet sheet = w.getSheetAt(sheetNo);
+		noOfRows =(noOfRows == -1) ? sheet.getLastRowNum()+1 : noOfRows;
+
+		int colWidth=this.noOfColumns-this.startCol;
+		if(colWidth <= 0) throw new SimpleParserException("Error startCol value exceeds noOfColumns, Check ParserDef/Property file configuration ");
+
+
+		int actualRowCount=0;
+		L2: for (int i = startRow; i < this.noOfRows; i++)
+		{
+			ErrorBean err = new ErrorBean(i);
+			T obj;
+			try	{
+				obj = ouptutDTOClass.newInstance();
+			}catch(Exception er)	{
+				throw new SimpleParserException("Error in creating class instace from input class Object using reflection.. Check JVM security settings");
+			}
+
+			Row row = sheet.getRow(i);
+			if(row == null) 	continue L2; // ignore blank rows
+			int j=0;
+			int emptyCount=0;
+			uniqueMap = new HashMap<Integer, Map<String,Integer>>();//added fo checking unique constrain violation
+			try{
+				actualRowCount++;
+				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
+				{
+					Cell cell = row.getCell(j);
+					Field fld = flds.get(j);
+					if(fld == null) continue L1;// ignore columns not mapped to DTO objects
+					String data=(cell == null) ? "" : getCellValAsString(cell);// added to prevent null pointer exception for unused columns
+
+					if(data.trim().isEmpty())	emptyCount++;
+					try{
+						if(unique.get(j) && !data.trim().isEmpty())	checkUnique(data, j); // unique constraint check
+						data=validateAndFormat(data, validators.get(j), formatters.get(j));
+					}catch(SimpleParserException p){
+						err.addColError(new ColErrors(j, p.getMessage()));// col error
+						continue L1;
+					}
+					fld.setAccessible(true);
+					fld.set(obj, typeConversion(fld.getType(),data));
+				}
+			}catch (Exception e) { // Added to coninute processing other rows
+				err.addColError(new ColErrors(j,e.getMessage()));
+				j=0;// make sure this obj is not added to fileObjList
+			}
+
+			if(!err.hasErrors() )			this.fileObjList.add(obj);// completed full loop without error caseobject
+			else if(emptyCount < colWidth)  this.errorList.add(err); //TODO Remove this check
+			else							actualRowCount--;// empty row case
+		}
+
+		if(maxNoOfRows != -1 && maxNoOfRows < actualRowCount)	throw new SimpleParserException("Exceed maximun number("+maxNoOfRows+") of permitted rows ");
+
+	}
+
+	private void checkUnique(String data,int colIndx) throws SimpleParserException{
+
+		Map<String,Integer> m = uniqueMap.get(colIndx);
+		if(m== null)
+		{	
+			m=new HashMap<String, Integer>();
+			m.put(data, 1);
+		}
+		else
+		{
+			if(m.containsKey(data))	throw new SimpleParserException("Unique contraint violated");
+			else					m.put(data,1);
+		}
+		uniqueMap.put(colIndx, m);
+	}
+
+	private String validateAndFormat(String data, Class<? extends CellValidator>[] validatorclses,CellFormatter formatter) throws SimpleParserException, InstantiationException, IllegalAccessException{
+
+		for(Class<? extends CellValidator> validatorCls : validatorclses){
+			CellValidator validator = validatorCls.newInstance();
+			String errorMsg=validator.valid(data) ;
+			if(errorMsg  != null){// invalid case
+				throw new SimpleParserException(errorMsg);
+			}
+		}
+		return formatter.format(data);
+	}
+
+	private String getCellValAsString(Cell cell) throws SimpleParserException {
+		switch(cell.getCellType()){
+		case Cell.CELL_TYPE_NUMERIC: 	return cell.getNumericCellValue()+"";
+		case Cell.CELL_TYPE_BLANK: 		return "";
+		case Cell.CELL_TYPE_BOOLEAN: 	return cell.getBooleanCellValue()+"";
+		case Cell.CELL_TYPE_ERROR: 		throw new SimpleParserException("Invalid Cell type");
+		case Cell.CELL_TYPE_FORMULA: 	return cell.getCellFormula();
+		default:						return cell.getStringCellValue();
+		}
+	}
 
 	private Object typeConversion(Class<?> clazz,String val) throws ParseException
 	{
-
 		if(val == null) 						return null;
 		String name = clazz.getSimpleName();
-		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	return (short)Double.parseDouble(val);
-		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	return (int) Double.parseDouble(val);
-		if(name.equalsIgnoreCase("Long"))										return (long) Double.parseDouble(val);
-		if(name.equalsIgnoreCase("Float"))										return (float) Double.parseDouble(val);
-		if(name.equalsIgnoreCase("Double"))										return Double.parseDouble(val);
+		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	return (short)((val.trim().length() ==0)?   0 : Double.parseDouble(val));
+		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	return (int)  ((val.trim().length() ==0)?   0 : Double.parseDouble(val));
+		if(name.equalsIgnoreCase("Long"))										return (long) ((val.trim().length() ==0)?   0 : Double.parseDouble(val));
+		if(name.equalsIgnoreCase("Float"))										return (float)((val.trim().length() ==0)?   0 : Double.parseDouble(val));
+		if(name.equalsIgnoreCase("Double"))										return 		  ((val.trim().length() ==0)?   0 : Double.parseDouble(val));
 		if(name.equalsIgnoreCase("Date")){
-			SimpleDateFormat dateFormat = new SimpleDateFormat("yyyy-MM-dd"); // MOVE THIS TO A PROPERTY FILE
+			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); // MOVE THIS TO A PROPERTY FILE
 			return dateFormat.parse(val);
 		}
 
 		return val;
 	}
+
+
+	private void initMaps(Class<T> ouptutDTOClass, Map<Integer, Field> flds, Map<Integer, Class<? extends CellValidator>[]> validators,
+			Map<Integer, CellFormatter> formatters, Map<Integer, Boolean> unique,boolean writeCase) throws SimpleParserException{
+		int maxIndex=0;
+		try
+		{
+			Field[] allFlds= ouptutDTOClass.getDeclaredFields();
+			for(Field fld : allFlds){
+				fld.setAccessible(true);
+				ColumnDef colDef =fld.getAnnotation(ColumnDef.class);
+				if(colDef == null) continue;
+				int index = colDef.index();
+				flds.put(index, fld);
+				validators.put(index,colDef.validators());
+				if(writeCase)   formatters.put(index, colDef.writeFormatter().newInstance());
+				else 			formatters.put(index, colDef.formatter().newInstance());
+				unique.put(index, colDef.unique());
+				maxIndex = (maxIndex < index) ? index : maxIndex;
+			}
+
+		}catch (Exception e) {
+			throw new SimpleParserException("Error in parsing annotations.. Error msg : "+e.getMessage());
+		}
+
+		if(maxIndex > noOfColumns) throw new SimpleParserException("Error in annoation configuration. Col index exceed noOf Columns declared");
+	}
+
+	private Workbook getWorkbook(File fileObj) throws SimpleParserException{
+		InputStream in;
+		try
+		{
+			in = new FileInputStream(fileObj);
+		} catch (FileNotFoundException e1)
+		{
+			throw new SimpleParserException("Invalid File path");
+		}
+		if(noOfColumns == -1)	throw new SimpleParserException("No of Columns is manadatory for Excel parsing");
+
+		String fileName=fileObj.getName();
+		String[] ext= fileName.split("\\.");
+		String type = ext[ext.length-1];
+
+		try
+		{
+			if(type.equalsIgnoreCase("xls"))	return new HSSFWorkbook(in);
+			else								return new XSSFWorkbook(in);	
+		}catch(IOException i)
+		{
+			throw new SimpleParserException("Error in parsing file using appache.poi lib.. File not a valid excel");
+		}
+	}
+
+	private String getStringVal(Class<? extends Field> clazz,Object val) {
+		if(val == null) 	return "";
+		String name = clazz.getSimpleName();
+		if(name.equalsIgnoreCase("Date")){
+			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); 
+			return(dateFormat.format((Date) val));
+		}
+		return val+"";
+	}
+
+	private void setCellVal(Cell cell, Class<?> clazz, String val) throws ParseException {
+		if(val == null) {														cell.setCellValue(""); return;   }
+		String name = clazz.getSimpleName();
+		if(name.equalsIgnoreCase("String") )									{cell.setCellValue(val); return;}
+		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
+		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
+		if(name.equalsIgnoreCase("Long"))										{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
+		if(name.equalsIgnoreCase("Float"))										{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
+		if(name.equalsIgnoreCase("Double"))										{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
+		if(name.equalsIgnoreCase("Date")){
+			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); 
+			cell.setCellValue(dateFormat.parse(val));
+			 return;
+		}
+	}
+	
+	public boolean writeObjects(List<T> objs, File fileObj, Class<T> ouptutDTOClass) throws SimpleParserException {
+		OutputStream out;
+
+		Workbook w = getWorkbook(fileObj);
+
+		Map<Integer,Field> flds= new HashMap<Integer,Field>();
+		Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
+		Map<Integer,CellFormatter> formatters = new HashMap<Integer, CellFormatter>();
+		Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
+
+		initMaps(ouptutDTOClass,flds,validators,formatters,unique,true);
+
+
+		Sheet sheet = w.getSheetAt(sheetNo);
+
+		int colWidth=this.noOfColumns-this.startCol;
+		if(colWidth <= 0) throw new SimpleParserException("Error startCol value exceeds noOfColumns, Check ParserDef/Property file configuration ");
+
+		int start=startRow;
+		for (T obj : objs)
+		{
+			ErrorBean err = new ErrorBean(start);
+			Row row = sheet.getRow(start++);
+			if(row == null) 	throw new SimpleParserException("Row returned null from Sheet for row id "+start);
+			int j=0;
+			uniqueMap = new HashMap<Integer, Map<String,Integer>>();//added fo checking unique constrain violation
+			try{
+				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
+				{
+					Cell cell = row.getCell(j);
+					Field fld = flds.get(j);
+					if(fld == null) continue L1;// ignore columns not mapped to DTO objects
+					String dataStr = (cell == null) ? "" :getStringVal(fld.getClass(), fld.get(obj));// added to prevent null pointer exception for unused columns
+					try{
+						if(unique.get(j) && !dataStr.trim().isEmpty())	checkUnique(dataStr,j); // unique constraint check
+						dataStr=validateAndFormat(dataStr, validators.get(j), formatters.get(j));
+						setCellVal(cell,fld.getType(),dataStr);
+					}catch(SimpleParserException p){
+						System.out.println(p.getMessage());
+						err.addColError(new ColErrors(j, p.getMessage()));// col error
+						break L1;
+					}
+				}
+			}catch (Exception e) { // Added to coninute processing other rows
+				err.addColError(new ColErrors(j,e.getMessage()));
+				j=0;// make sure this obj is not added to fileObjList
+			}
+
+			if(err.hasErrors() )	this.errorList.add(err); //TODO Remove this check
+		}
+		if(this.errorList.size() != 0) return false;
+		else{
+			try{
+				out = new FileOutputStream(fileObj);
+				w.write(out);
+				out.flush();
+				out.close();
+				return true;
+			}catch (Exception e) {
+				throw new SimpleParserException(e);
+			}
+		}
+	}
+
+	
+	public void writeObjectsToNewFile(List<T> obj, String filePath)
+			throws SimpleParserException {
+		// TODO Auto-generated method stub
+
+	}
+
+
 
 
 }

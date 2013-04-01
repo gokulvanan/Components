@@ -8,9 +8,9 @@ import org.simple.parser.core.validators.BasicValidators;
 import org.simple.parser.excel.ExcelParser;
 
 @ParserDef(parser=ExcelParser.class,
-srcFilePath="/home/gokulvanan/Documents/TestFile.xlsx",
-noOfColumns=3, // 3 columns
-startRow=2 // ignore row 1 header
+srcFilePath="src/test/excelFiles/TestFile2.xlsx",
+noOfColumns=4, // 3 columns
+startRow=1 , startCol=1 // ignore row 1 header
 )
 public class SampleModel extends FileBean<SampleModel>{
 

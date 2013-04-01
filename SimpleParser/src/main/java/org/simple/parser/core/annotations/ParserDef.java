@@ -12,8 +12,9 @@ public @interface ParserDef {
 	public String srcFilePath() default "NULL";
 	public int noOfColumns() 	default -1;
 	public int noOfRows() 		default -1;
-	public int sheetNo() 		default  1; // specific to excel sheet
-	public int startRow() 		default  1;
-	public int startCol() 		default  1;
+	public int sheetNo() 		default  0; // specific to excel sheet
+	public int startRow() 		default  0;
+	public int startCol() 		default  0;
 	public int maxNoOfRows()	default  -1;
+	public String dateformat()  default "YYYY-mm-dd";
 }

@@ -25,9 +25,15 @@ public interface IFileParser<T extends IFileBean> {
 	
 	public List<T> getParsedObjects();
 	
+	boolean writeObjects(List<T> objs, File fileObj, Class<T> ouptutDTOClass)	throws SimpleParserException;
+	
+	public void writeObjectsToNewFile(List<T> obj,String filePath) throws SimpleParserException;
+	
 	public List<ErrorBean> getErrorObjects();
 	
 	public boolean isSucessfull();
+
+	
 	
 	
 }

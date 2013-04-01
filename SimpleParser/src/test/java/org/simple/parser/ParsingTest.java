@@ -20,11 +20,20 @@ public class ParsingTest {
     	System.out.println(model.isSucessfull());
     	if(model.isSucessfull())
     	{
+    		System.out.println(objs.size());
     		for(SampleModel obj : objs){
-        		System.out.println(obj.id);
-        		System.out.println(obj.name);
-        		System.out.println(obj.age);
-        	}
+//    			System.out.println(obj.appName);
+//    			System.out.println(obj.cid);
+//    			System.out.println(obj.expectedResult);
+//    			System.out.println(obj.ipaddress);
+//    			System.out.println(obj.status);
+//    			System.out.println(obj.useragent);
+//    			obj.status="Updated";
+    			obj.age=500;
+    		}
+    		model.update();
+    		System.out.println(model.isSucessfull());
+    		
     	}else{
     		List<ErrorBean> errors=model.getErrors();
     		for(ErrorBean err : errors){

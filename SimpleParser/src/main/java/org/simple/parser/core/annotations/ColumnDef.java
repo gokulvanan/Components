@@ -23,7 +23,8 @@ import org.simple.parser.core.validators.NoValidaion;
 public @interface ColumnDef {
 
 	public int  index();
-	public Class<? extends CellValidator>[] validators() default {NoValidaion.class};
-	public Class<? extends CellFormatter> formatter() default NoFormat.class;
+	public Class<? extends CellValidator>[] validators() 	default {NoValidaion.class};
+	public Class<? extends CellFormatter> formatter() 		default NoFormat.class;
+	public Class<? extends CellFormatter> writeFormatter() 	default NoFormat.class;
 	public boolean unique() default false;
 }

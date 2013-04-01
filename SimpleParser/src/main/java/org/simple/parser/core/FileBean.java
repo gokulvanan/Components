@@ -20,8 +20,9 @@ import org.simple.parser.exceptions.SimpleParserException;
 public class FileBean<T extends IFileBean> implements IFileBean{
 
 	@SuppressWarnings("rawtypes")
-	public static IFileParser parser;
-	public static File srcFile=null;
+	private IFileParser parser;
+	private File srcFile=null;
+	private List<T> fileObjs;
 
 	private void initialize() throws SimpleParserException{
 		
@@ -48,22 +49,39 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 		{
 			throw new SimpleParserException("Invalid parser class specified in parserDef");
 		}
+		System.out.println("Initializing parser");
 		parser.initialize(parserAnno);
 	}
 
 	@SuppressWarnings("unchecked")
 	public  List<T> read() throws SimpleParserException{
+		if(fileObjs != null)	return fileObjs;
 		if(parser == null || srcFile == null)	initialize();
 		parser.parse(srcFile, this.getClass());
-		return parser.getParsedObjects();
+		fileObjs = parser.getParsedObjects();
+		return fileObjs;
 	}
 
 	@SuppressWarnings("unchecked")
-	public  List<T> read(File newFile) throws SimpleParserException{
-		if(parser == null)			initialize();
-		parser.parse(newFile, this.getClass());
-		return parser.getParsedObjects();
+	public void update() throws SimpleParserException{
+		if(fileObjs == null)	throw new SimpleParserException("Can not updated before reading a file");
+		parser.writeObjects(fileObjs, srcFile, this.getClass());
 	}
+	
+	public void write(String newFilePath){
+		
+	}
+	
+//	public void append(List<T> objs){
+//		
+//	}
+	
+//	@SuppressWarnings("unchecked")
+//	public  List<T> read(File newFile) throws SimpleParserException{
+//		if(parser == null)			initialize();
+//		parser.parse(newFile, this.getClass());
+//		return parser.getParsedObjects();
+//	}
 
 	@SuppressWarnings("unchecked")
 	public List<ErrorBean> getErrors(){
@@ -72,6 +90,17 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 
 	public boolean isSucessfull(){
 		return parser.isSucessfull();
+	}
+
+	public void append(IFileBean obj) throws SimpleParserException {
+		// TODO Auto-generated method stub
+		
+	}
+
+	public void append(List<? extends IFileBean> objs)
+			throws SimpleParserException {
+		// TODO Auto-generated method stub
+		
 	}
 
 
