@@ -15,51 +15,58 @@ Implementation of Excel parser works. CSV and TSV are yet to be implemented
 
 Example of Model implemenation 
 
-@ParserDef(parser=ExcelParser.class,
-srcFilePath="/home/xyz/Documents/TestFile.xlsx",
-noOfColumns=3, // 3 columns
-startRow=2 // ignore row 1 header
-)
-public class SampleModel extends FileBean<SampleModel>{
-
-	@ColumnDef(index=1, 
-			validators={BasicValidators.MandatoryValidator.class},
-			unique=true)
-	public int id;
-	@ColumnDef(index=2,
-			formatter=BasicFormatters.ToUpperCase.class)
-	public String name;
-	@ColumnDef(index=3)
-	public int age;
-
-}
+	@ParserDef(parser=ExcelParser.class,
+	srcFilePath="/home/xyz/Documents/TestFile.xlsx",
+	noOfColumns=3, // 3 columns
+	startRow=2 // ignore row 1 header
+	)	
+	public class SampleModel extends FileBean<SampleModel>{
+	
+		@ColumnDef(index=1, 
+				validators={BasicValidators.MandatoryValidator.class},
+				unique=true)
+		public int id;
+		@ColumnDef(index=2,
+				formatter=BasicFormatters.ToUpperCase.class)
+		public String name;
+		@ColumnDef(index=3)
+		public int age;
+	
+	}
 
 Example of using above model to parser excel file
 
- public void parseExcelFileTest() throws Exception
-    {
-    	System.out.println("Starting test ");
-    	SampleModel model = new SampleModel();
-    	List<SampleModel> objs =model.read();
-    	System.out.println(model.isSucessfull());
-    	if(model.isSucessfull())
-    	{
-    		for(SampleModel obj : objs){
-        		System.out.println(obj.id);
-        		System.out.println(obj.name);
-        		System.out.println(obj.age);
-        	}
-    	}else{
-    		List<ErrorBean> errors=model.getErrors();
-    		for(ErrorBean err : errors){
-    			System.out.println(err.getRow());
-    			for(ColErrors colerr : err.getColErrors())
-    			{
-    				System.out.println(colerr.getCol());
-    				System.out.println(colerr.getMsg());
-    			}
-    		}
-    	}
-    	
-    	System.out.println("End of test");
-    } 
+	public class ParsingTest {
+	   
+	    @Test
+	    public void parseExcelFileTest() throws Exception
+	    {
+	    	System.out.println("Starting test ");
+	    	SampleModel model = FileBean.getBean(SampleModel.class);
+	    	List<SampleModel> objs =model.read();
+	    	System.out.println(model.isSucessfull());
+	    	if(model.isSucessfull())
+	    	{
+	    		System.out.println(objs.size());
+	    		for(SampleModel obj : objs){
+	    			obj.age=35;
+	    		}
+	    		model.update(); // updates existing File
+	    		model.write("src/test/excelFiles/TestFileOutput.xlsx"); // writes to new file
+	    		System.out.println(model.isSucessfull());
+	    		
+	    	}else{
+	    		List<ErrorBean> errors=model.getErrors();
+	    		for(ErrorBean err : errors){
+	    			System.out.println(err.getRow());
+	    			for(ColErrors colerr : err.getColErrors())
+	    			{
+	    				System.out.println(colerr.getCol());
+	    				System.out.println(colerr.getMsg());
+	    			}
+	    		}
+	    	}
+	    	
+	    	System.out.println("End of test");
+	    }
+	}
