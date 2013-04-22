@@ -2,6 +2,8 @@ package org.simple.parser.core;
 
 import java.io.File;
 import java.io.FileInputStream;
+import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Properties;
 
@@ -24,64 +26,68 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 	private File srcFile=null;
 	private List<T> fileObjs;
 
+
+	public static <T extends FileBean<T>> T getBean(Class<T> clazz) throws  SimpleParserException{
+		T obj = null;
+		try{
+			obj = clazz.newInstance();
+			obj.initialize();
+		}catch(InstantiationException i){
+			throw new SimpleParserException(i);
+		}catch (IllegalAccessException e) {
+			throw new SimpleParserException(e);
+		}
+		return obj;
+	}
+	@SuppressWarnings("unchecked")
 	private void initialize() throws SimpleParserException{
-		
-		@SuppressWarnings("unchecked")
 		Class<T> childClass=(Class<T>) this.getClass();
 		ParserDef parserAnno = childClass.getAnnotation(ParserDef.class);
 		if(parserAnno == null)		throw new SimpleParserException("ParserDef Annotation not maped to model");
 		String srcPath=parserAnno.srcFilePath();
-		if(!srcPath.equals( "NULL"))
-		{
-			try
-			{
+		if(!srcPath.equals( "NULL")){
+			try{
 				srcFile = new File(srcPath);
-			}catch(Exception e)
-			{
+			}catch(Exception e){
 				throw new SimpleParserException("Error in reading input file "+e.getMessage());
 			}	
 		}
-		
-		try 
-		{
+		try{
 			parser = parserAnno.parser().newInstance();
-		} catch (Exception e) 
-		{
+		} catch (Exception e){
 			throw new SimpleParserException("Invalid parser class specified in parserDef");
 		}
 		System.out.println("Initializing parser");
-		parser.initialize(parserAnno);
+		parser.initialize(parserAnno,this.getClass());
 	}
 
 	@SuppressWarnings("unchecked")
 	public  List<T> read() throws SimpleParserException{
 		if(fileObjs != null)	return fileObjs;
 		if(parser == null || srcFile == null)	initialize();
-		parser.parse(srcFile, this.getClass());
+		parser.parse(srcFile);
 		fileObjs = parser.getParsedObjects();
 		return fileObjs;
 	}
 
 	@SuppressWarnings("unchecked")
 	public void update() throws SimpleParserException{
-		if(fileObjs == null)	throw new SimpleParserException("Can not updated before reading a file");
-		parser.writeObjects(fileObjs, srcFile, this.getClass());
+		if(fileObjs == null || srcFile == null)	throw new SimpleParserException("Can not updated before reading a file");
+		parser.writeObjects(fileObjs,srcFile);
 	}
-	
-	public void write(String newFilePath){
-		
+
+	@SuppressWarnings("unchecked")
+	public void write(String newFilePath) throws SimpleParserException{
+		if(fileObjs == null)	throw new SimpleParserException("Can not write without any objects");
+		File destFile = null;
+		try{
+			destFile = new File(newFilePath);
+		}catch(Exception e){
+			throw new SimpleParserException("Error in reading input file "+e.getMessage());
+		}
+		System.out.println(destFile);
+		parser.writeObjects(fileObjs,destFile);
 	}
-	
-//	public void append(List<T> objs){
-//		
-//	}
-	
-//	@SuppressWarnings("unchecked")
-//	public  List<T> read(File newFile) throws SimpleParserException{
-//		if(parser == null)			initialize();
-//		parser.parse(newFile, this.getClass());
-//		return parser.getParsedObjects();
-//	}
 
 	@SuppressWarnings("unchecked")
 	public List<ErrorBean> getErrors(){
@@ -92,15 +98,17 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 		return parser.isSucessfull();
 	}
 
+	@SuppressWarnings("unchecked")
 	public void append(IFileBean obj) throws SimpleParserException {
-		// TODO Auto-generated method stub
-		
+		fileObjs = (fileObjs == null) ? new LinkedList<T>() : fileObjs;
+		fileObjs.add((T) obj);
 	}
 
-	public void append(List<? extends IFileBean> objs)
-			throws SimpleParserException {
-		// TODO Auto-generated method stub
-		
+	@SuppressWarnings("unchecked")
+	public void append(List<? extends IFileBean> objs) throws SimpleParserException {
+		fileObjs = (fileObjs == null) ? new LinkedList<T>() : fileObjs;
+		fileObjs.addAll((Collection<? extends T>) objs);
+
 	}
 
 

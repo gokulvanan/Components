@@ -19,15 +19,13 @@ public interface IFileParser<T extends IFileBean> {
 	
 	public void initialize(Properties props) throws SimpleParserException;
 	
-	public void initialize(ParserDef props) throws SimpleParserException;
+	public void initialize(ParserDef props, Class<T> ouptutDTOClass) throws SimpleParserException;
 	
-	public void parse(File file, Class<T> ouptutDTOClass ) throws SimpleParserException;
+	public void parse(File file ) throws SimpleParserException;
 	
 	public List<T> getParsedObjects();
 	
-	boolean writeObjects(List<T> objs, File fileObj, Class<T> ouptutDTOClass)	throws SimpleParserException;
-	
-	public void writeObjectsToNewFile(List<T> obj,String filePath) throws SimpleParserException;
+	boolean writeObjects(List<T> objs, File fileObj)	throws SimpleParserException;
 	
 	public List<ErrorBean> getErrorObjects();
 	

@@ -51,13 +51,21 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	private int maxNoOfRows=-1;
 	private String dateFormat=null;
 
+	//config fields
+	private Map<Integer,Field> flds= new HashMap<Integer,Field>();
+	private Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
+	private Map<Integer,CellFormatter> writeFormatters = new HashMap<Integer, CellFormatter>();
+	private Map<Integer,CellFormatter> readFormatters = new HashMap<Integer, CellFormatter>();
+	private Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
+	private Class<T> ouptutDTOClass;
+
 	private List<T> fileObjList=null;
 	private List<ErrorBean> errorList=null;
 	Map<Integer,Map<String,Integer>> uniqueMap=null;
 	/**
 	 * Initialise parser configurations from {@link ParserDef} annotation file
 	 */
-	public void initialize(ParserDef props) throws SimpleParserException  {
+	public void initialize(ParserDef props,Class<T> clazz) throws SimpleParserException  {
 		try{
 			this.noOfColumns= props.noOfColumns();
 			this.noOfRows=props.noOfRows();
@@ -66,6 +74,8 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 			this.startCol=props.startCol();
 			this.maxNoOfRows=props.maxNoOfRows();
 			this.dateFormat=props.dateformat();
+			this.ouptutDTOClass=clazz;
+			initMaps();
 		}catch (Exception e) {
 			throw new SimpleParserException("Error in configuration msg"+e.getMessage());
 		}
@@ -100,19 +110,13 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		return (this.errorList.size() == 0);
 	}
 
-	public void parse(File fileObj, Class<T> ouptutDTOClass) throws SimpleParserException {
+	public void parse(File fileObj) throws SimpleParserException {
 
-		Workbook w = getWorkbook(fileObj);
+		Workbook w = getWorkbook(fileObj,true);// file has to exist for read case
 
 		fileObjList= new ArrayList<T>();
 		errorList=new ArrayList<ErrorBean>();
 
-		Map<Integer,Field> flds= new HashMap<Integer,Field>();
-		Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
-		Map<Integer,CellFormatter> formatters = new HashMap<Integer, CellFormatter>();
-		Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
-
-		initMaps(ouptutDTOClass,flds,validators,formatters,unique,false);
 
 		Sheet sheet = w.getSheetAt(sheetNo);
 		noOfRows =(noOfRows == -1) ? sheet.getLastRowNum()+1 : noOfRows;
@@ -149,7 +153,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 					if(data.trim().isEmpty())	emptyCount++;
 					try{
 						if(unique.get(j) && !data.trim().isEmpty())	checkUnique(data, j); // unique constraint check
-						data=validateAndFormat(data, validators.get(j), formatters.get(j));
+						data=validateAndFormat(data, validators.get(j), readFormatters.get(j));
 					}catch(SimpleParserException p){
 						err.addColError(new ColErrors(j, p.getMessage()));// col error
 						continue L1;
@@ -228,8 +232,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	}
 
 
-	private void initMaps(Class<T> ouptutDTOClass, Map<Integer, Field> flds, Map<Integer, Class<? extends CellValidator>[]> validators,
-			Map<Integer, CellFormatter> formatters, Map<Integer, Boolean> unique,boolean writeCase) throws SimpleParserException{
+	private void initMaps() throws SimpleParserException{
 		int maxIndex=0;
 		try
 		{
@@ -241,8 +244,8 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 				int index = colDef.index();
 				flds.put(index, fld);
 				validators.put(index,colDef.validators());
-				if(writeCase)   formatters.put(index, colDef.writeFormatter().newInstance());
-				else 			formatters.put(index, colDef.formatter().newInstance());
+				writeFormatters.put(index, colDef.writeFormatter().newInstance());
+				readFormatters.put(index, colDef.formatter().newInstance());
 				unique.put(index, colDef.unique());
 				maxIndex = (maxIndex < index) ? index : maxIndex;
 			}
@@ -254,25 +257,31 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		if(maxIndex > noOfColumns) throw new SimpleParserException("Error in annoation configuration. Col index exceed noOf Columns declared");
 	}
 
-	private Workbook getWorkbook(File fileObj) throws SimpleParserException{
-		InputStream in;
-		try
-		{
-			in = new FileInputStream(fileObj);
-		} catch (FileNotFoundException e1)
-		{
-			throw new SimpleParserException("Invalid File path");
+	private Workbook getWorkbook(File fileObj, boolean fileExist) throws SimpleParserException{
+		InputStream in = null;
+		if(fileExist){ // fileOb exist for read case and does not exist for write case
+			try	{
+				in = new FileInputStream(fileObj);
+			} catch (FileNotFoundException e1)
+			{
+				throw new SimpleParserException("Invalid File path");
+			}
+			if(noOfColumns == -1)	throw new SimpleParserException("No of Columns is manadatory for Excel parsing");
 		}
-		if(noOfColumns == -1)	throw new SimpleParserException("No of Columns is manadatory for Excel parsing");
 
 		String fileName=fileObj.getName();
 		String[] ext= fileName.split("\\.");
 		String type = ext[ext.length-1];
-
 		try
 		{
-			if(type.equalsIgnoreCase("xls"))	return new HSSFWorkbook(in);
-			else								return new XSSFWorkbook(in);	
+			if(fileExist){
+				if(type.equalsIgnoreCase("xls"))	return new HSSFWorkbook(in);
+				else								return new XSSFWorkbook(in);
+			}else{
+				if(type.equalsIgnoreCase("xls"))	return new HSSFWorkbook();
+				else								return new XSSFWorkbook();
+			}
+				
 		}catch(IOException i)
 		{
 			throw new SimpleParserException("Error in parsing file using appache.poi lib.. File not a valid excel");
@@ -301,25 +310,16 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		if(name.equalsIgnoreCase("Date")){
 			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); 
 			cell.setCellValue(dateFormat.parse(val));
-			 return;
+			return;
 		}
 	}
-	
-	public boolean writeObjects(List<T> objs, File fileObj, Class<T> ouptutDTOClass) throws SimpleParserException {
+
+	public boolean writeObjects(List<T> objs,File fileObj) throws SimpleParserException {
 		OutputStream out;
+		boolean fileExist = fileObj.exists();
+		Workbook w = getWorkbook(fileObj,fileExist);
 
-		Workbook w = getWorkbook(fileObj);
-
-		Map<Integer,Field> flds= new HashMap<Integer,Field>();
-		Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
-		Map<Integer,CellFormatter> formatters = new HashMap<Integer, CellFormatter>();
-		Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
-
-		initMaps(ouptutDTOClass,flds,validators,formatters,unique,true);
-
-
-		Sheet sheet = w.getSheetAt(sheetNo);
-
+		Sheet sheet = (fileExist)? w.getSheetAt(sheetNo) : w.createSheet();
 		int colWidth=this.noOfColumns-this.startCol;
 		if(colWidth <= 0) throw new SimpleParserException("Error startCol value exceeds noOfColumns, Check ParserDef/Property file configuration ");
 
@@ -327,20 +327,20 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		for (T obj : objs)
 		{
 			ErrorBean err = new ErrorBean(start);
-			Row row = sheet.getRow(start++);
+			Row row = (fileExist)? sheet.getRow(start++) : sheet.createRow(start++);
 			if(row == null) 	throw new SimpleParserException("Row returned null from Sheet for row id "+start);
 			int j=0;
 			uniqueMap = new HashMap<Integer, Map<String,Integer>>();//added fo checking unique constrain violation
 			try{
 				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
 				{
-					Cell cell = row.getCell(j);
+					Cell cell = (fileExist)?row.getCell(j): row.createCell(j);
 					Field fld = flds.get(j);
 					if(fld == null) continue L1;// ignore columns not mapped to DTO objects
 					String dataStr = (cell == null) ? "" :getStringVal(fld.getClass(), fld.get(obj));// added to prevent null pointer exception for unused columns
 					try{
 						if(unique.get(j) && !dataStr.trim().isEmpty())	checkUnique(dataStr,j); // unique constraint check
-						dataStr=validateAndFormat(dataStr, validators.get(j), formatters.get(j));
+						dataStr=validateAndFormat(dataStr, validators.get(j), writeFormatters.get(j));
 						setCellVal(cell,fld.getType(),dataStr);
 					}catch(SimpleParserException p){
 						System.out.println(p.getMessage());
@@ -369,12 +369,13 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		}
 	}
 
-	
+
 	public void writeObjectsToNewFile(List<T> obj, String filePath)
-			throws SimpleParserException {
+	throws SimpleParserException {
 		// TODO Auto-generated method stub
 
 	}
+
 
 
 

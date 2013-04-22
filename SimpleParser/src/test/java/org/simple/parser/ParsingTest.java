@@ -5,6 +5,7 @@ import java.util.List;
 import org.junit.Test;
 import org.simple.parser.core.ErrorBean;
 import org.simple.parser.core.ErrorBean.ColErrors;
+import org.simple.parser.core.FileBean;
 
 /**
  * Unit test for simple App.
@@ -15,23 +16,17 @@ public class ParsingTest {
     public void parseExcelFileTest() throws Exception
     {
     	System.out.println("Starting test ");
-    	SampleModel model = new SampleModel();
+    	SampleModel model = FileBean.getBean(SampleModel.class);
     	List<SampleModel> objs =model.read();
     	System.out.println(model.isSucessfull());
     	if(model.isSucessfull())
     	{
     		System.out.println(objs.size());
     		for(SampleModel obj : objs){
-//    			System.out.println(obj.appName);
-//    			System.out.println(obj.cid);
-//    			System.out.println(obj.expectedResult);
-//    			System.out.println(obj.ipaddress);
-//    			System.out.println(obj.status);
-//    			System.out.println(obj.useragent);
-//    			obj.status="Updated";
-    			obj.age=500;
+    			obj.age=35;
     		}
     		model.update();
+    		model.write("src/test/excelFiles/TestFileOutput.xlsx");
     		System.out.println(model.isSucessfull());
     		
     	}else{
