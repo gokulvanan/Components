@@ -12,7 +12,7 @@ public interface IFileBean {
 	
 	public  List<? extends IFileBean> read() throws SimpleParserException;
 	
-//	public  List<? extends IFileBean> read(File newFile) throws SimpleParserException;
+	public  List<? extends IFileBean> read(File newFile) throws SimpleParserException;
 	
 	public  void write(String path) throws SimpleParserException;
 	

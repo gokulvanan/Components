@@ -17,7 +17,9 @@ public interface BasicValidators {
     public static class SpecialCharValidator implements CellValidator{
 
         private static Pattern patt = Pattern.compile(".*[~!@#$%^&*()<>;']+.*");
-        public String valid(String data) {
+        public String valid(Object val) {
+        	if (val == null) return null;
+        	String data = val.toString();
             Matcher match = patt.matcher(data);
             if(match.matches())
                 return new StringBuilder().append(" Cell contains invalid characters ").toString();
@@ -27,9 +29,10 @@ public interface BasicValidators {
     }
 
     public static class URLValidator implements CellValidator{
-
         public static UrlValidator validator = new UrlValidator();
-        public String valid(String data){
+        public String valid(Object val){
+        	if (val == null) return null;
+        	String data = val.toString();
             if(validator.isValid(data))
                 return null;
             else
@@ -38,78 +41,38 @@ public interface BasicValidators {
     }
 
     public static class MandatoryValidator implements CellValidator {
-
-
-        public String valid(String data) {
-            if(data != null && !data.isEmpty())
-                return null;
-            else
-                return "Mandatory Column can not be Empty";
+        public String valid(Object data) {
+            if(data == null || data.toString().isEmpty())   return "Mandatory Column can not be Empty";	
+            else  											return null;
         }
     }
 
-    public static class IntegerValidator implements CellValidator{
+  
+    public static class NumberValidator implements CellValidator{
 
-        public String valid(String data){
+        public String valid(Object data){
             try{
-                Integer.parseInt(data);
+            	Double val =(Double)data;
                 return null;
             }catch (Exception e){
-                return new StringBuilder("Cell content is not a valid Integer").toString();
-            }
-        }
-    }
-    
-    public static class LongValidator implements CellValidator{
-
-        public String valid(String data){
-            try{
-                Long.parseLong(data);
-                return null;
-            }catch (Exception e){
-                return new StringBuilder("Cell content is not a valid Long").toString();
-            }
-        }
-    }
-    
-
-    public static class WholeNumberValidator implements CellValidator{
-
-        public String valid(String data){
-            try{
-                long val =Long.parseLong(data);
-                if(val < 0) return "Cell content has a neagative numebr.. only whole numbers are allowed";
-                return null;
-            }catch (Exception e){
-                return "Cell content is not a valid whole number";
+                return "Cell content is not a valid number";
             }
         }
     }
    
-    public static class PositiveDoubleValidator implements CellValidator{
+    public static class PositiveNumberValidator implements CellValidator{
 
-        public String valid(String data){
+        public String valid(Object data){
             try{
-                double val = Double.parseDouble(data);
-                if(val < 0) return "Cell content has a negative number.. only positive numbers allowed";
+            	Double val =(Double)data;
+                if(val != null && val < 0) return "Cell content has a neagative numebr.. only Positive numbers are allowed";
                 return null;
             }catch (Exception e){
-                return "Cell content is not a valid Double";
+                return "Cell content is not a valid number";
             }
         }
     }
-
-    public static class DoubleValidator implements CellValidator{
-
-        public String valid(String data){
-            try{
-                double val = Double.parseDouble(data);
-                return null;
-            }catch (Exception e){
-                return new StringBuilder("Cell content is not a valid Double").toString();
-            }
-        }
-    }
+   
     
     /**
      * Sample Date validator that check for dates with DD-MM-YYYY format
@@ -118,9 +81,11 @@ public interface BasicValidators {
      */
     public static class DateValidator implements CellValidator{
     	public static String dateFormat = "DD-MM-YYYY";
-        public String valid(String data) {
+        public String valid(Object data) {
             try{
-            	new SimpleDateFormat().parse(data);
+            	if (data == null) return null;
+            	String val = data.toString();
+            	new SimpleDateFormat().parse(val);
             	return null;
             }catch (ParseException e) {
             	return "Invalid Date format.. Date format should be : "+dateFormat;

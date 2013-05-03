@@ -21,6 +21,11 @@ public class ErrorBean {
 		public String getMsg(){
 			return this.msg;
 		}
+		
+		public String toString(){
+			return new StringBuilder(50)
+			.append("Col - "+col).append(" msg - "+msg).toString();
+		}
 	}
 	
 	private int row=-1;
@@ -48,4 +53,11 @@ public class ErrorBean {
 		return this.colErros;
 	}
 	
+	public String toString(){
+		StringBuilder build = new StringBuilder(100);
+		build.append("ROW : "+row);
+		build.append("COLUMNS : ");
+		for(ColErrors c : this.colErros) build.append(c.toString());
+		return build.toString();
+	}
 }

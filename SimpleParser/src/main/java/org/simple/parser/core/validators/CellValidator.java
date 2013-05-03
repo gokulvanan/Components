@@ -14,6 +14,6 @@ public interface CellValidator {
 	 * If valid return null else return error message String
 	 * @return
 	 */
-	public String valid(String data);
+	public String valid(Object data);
 
 }

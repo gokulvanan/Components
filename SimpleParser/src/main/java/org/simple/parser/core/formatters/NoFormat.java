@@ -9,7 +9,7 @@ import org.simple.parser.core.annotations.ColumnDef;
  */
 public class NoFormat implements CellFormatter{
 
-	public String format(String input) {
+	public Object format(Object input) {
 		return input;
 	}
 

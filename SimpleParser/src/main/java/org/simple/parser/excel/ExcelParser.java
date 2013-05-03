@@ -20,6 +20,7 @@ import java.util.Properties;
 
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.DateUtil;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.usermodel.Workbook;
@@ -52,16 +53,16 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	private String dateFormat=null;
 
 	//config fields
-	private Map<Integer,Field> flds= new HashMap<Integer,Field>();
-	private Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
-	private Map<Integer,CellFormatter> writeFormatters = new HashMap<Integer, CellFormatter>();
-	private Map<Integer,CellFormatter> readFormatters = new HashMap<Integer, CellFormatter>();
-	private Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
+	private final Map<Integer,Field> flds= new HashMap<Integer,Field>();
+	private final Map<Integer,Class<? extends CellValidator>[]> validators = new HashMap<Integer,Class<? extends CellValidator>[]>();
+	private final Map<Integer,CellFormatter> writeFormatters = new HashMap<Integer, CellFormatter>();
+	private final Map<Integer,CellFormatter> readFormatters = new HashMap<Integer, CellFormatter>();
+	private final Map<Integer,Boolean> unique = new HashMap<Integer, Boolean>();
 	private Class<T> ouptutDTOClass;
 
 	private List<T> fileObjList=null;
 	private List<ErrorBean> errorList=null;
-	Map<Integer,Map<String,Integer>> uniqueMap=null;
+	Map<Integer,Map<Object,Integer>> uniqueMap=null;
 	/**
 	 * Initialise parser configurations from {@link ParserDef} annotation file
 	 */
@@ -139,8 +140,8 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 			Row row = sheet.getRow(i);
 			if(row == null) 	continue L2; // ignore blank rows
 			int j=0;
-			int emptyCount=0;
-			uniqueMap = new HashMap<Integer, Map<String,Integer>>();//added fo checking unique constrain violation
+			int emptyCount=1;
+			uniqueMap = new HashMap<Integer, Map<Object,Integer>>();//added fo checking unique constrain violation
 			try{
 				actualRowCount++;
 				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
@@ -148,11 +149,11 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 					Cell cell = row.getCell(j);
 					Field fld = flds.get(j);
 					if(fld == null) continue L1;// ignore columns not mapped to DTO objects
-					String data=(cell == null) ? "" : getCellValAsString(cell);// added to prevent null pointer exception for unused columns
-
-					if(data.trim().isEmpty())	emptyCount++;
+					Object data = (cell == null) ? null : getCellVal(cell);// added to prevent null pointer exception for unused columns
+					if(data == null)emptyCount++;
 					try{
-						if(unique.get(j) && !data.trim().isEmpty())	checkUnique(data, j); // unique constraint check
+//						if(data != null)System.out.print(fld.getName()+" | "+data+ " - " );
+						if(unique.get(j))	checkUnique(data, j); // unique constraint check
 						data=validateAndFormat(data, validators.get(j), readFormatters.get(j));
 					}catch(SimpleParserException p){
 						err.addColError(new ColErrors(j, p.getMessage()));// col error
@@ -161,11 +162,12 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 					fld.setAccessible(true);
 					fld.set(obj, typeConversion(fld.getType(),data));
 				}
+//				System.out.println("we");
 			}catch (Exception e) { // Added to coninute processing other rows
 				err.addColError(new ColErrors(j,e.getMessage()));
 				j=0;// make sure this obj is not added to fileObjList
 			}
-
+			//			System.out.println(actualRowCount+"_"+emptyCount+"_"+colWidth);
 			if(!err.hasErrors() )			this.fileObjList.add(obj);// completed full loop without error caseobject
 			else if(emptyCount < colWidth)  this.errorList.add(err); //TODO Remove this check
 			else							actualRowCount--;// empty row case
@@ -175,12 +177,12 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 
 	}
 
-	private void checkUnique(String data,int colIndx) throws SimpleParserException{
+	private void checkUnique(Object data,int colIndx) throws SimpleParserException{
 
-		Map<String,Integer> m = uniqueMap.get(colIndx);
+		Map<Object,Integer> m = uniqueMap.get(colIndx);
 		if(m== null)
 		{	
-			m=new HashMap<String, Integer>();
+			m=new HashMap<Object, Integer>();
 			m.put(data, 1);
 		}
 		else
@@ -191,47 +193,47 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		uniqueMap.put(colIndx, m);
 	}
 
-	private String validateAndFormat(String data, Class<? extends CellValidator>[] validatorclses,CellFormatter formatter) throws SimpleParserException, InstantiationException, IllegalAccessException{
+	private Object validateAndFormat(Object data, Class<? extends CellValidator>[] validatorclses,CellFormatter formatter) throws SimpleParserException, InstantiationException, IllegalAccessException{
 		try{
-		for(Class<? extends CellValidator> validatorCls : validatorclses){
-			CellValidator validator = validatorCls.newInstance();
-			String errorMsg=validator.valid(data) ;
-			if(errorMsg  != null){// invalid case
-				throw new SimpleParserException(errorMsg);
+			for(Class<? extends CellValidator> validatorCls : validatorclses){
+				CellValidator validator = validatorCls.newInstance();
+				String errorMsg=validator.valid(data) ;
+				if(errorMsg  != null){// invalid case
+					throw new SimpleParserException(errorMsg);
+				}
 			}
-		}
-		return formatter.format(data);
+			return formatter.format(data);
 		}catch (Exception e) {
 			throw new SimpleParserException(e.getLocalizedMessage());
 		}
 	}
 
-	private String getCellValAsString(Cell cell) throws SimpleParserException {
+	private Object getCellVal(Cell cell) throws SimpleParserException {
 		switch(cell.getCellType()){
-		case Cell.CELL_TYPE_NUMERIC: 	return cell.getNumericCellValue()+"";
-		case Cell.CELL_TYPE_BLANK: 		return "";
-		case Cell.CELL_TYPE_BOOLEAN: 	return cell.getBooleanCellValue()+"";
-		case Cell.CELL_TYPE_ERROR: 		throw new SimpleParserException("Invalid Cell type");
-		case Cell.CELL_TYPE_FORMULA: 	return cell.getCellFormula();
-		default:						return cell.getStringCellValue();
+		case Cell.CELL_TYPE_NUMERIC:
+			return (DateUtil.isCellDateFormatted(cell)) ? new SimpleDateFormat(dateFormat).format(cell.getDateCellValue())/* date case */: cell.getNumericCellValue();
+		case Cell.CELL_TYPE_BLANK: 		return null;
+		case Cell.CELL_TYPE_BOOLEAN: 	return cell.getBooleanCellValue();
+		case Cell.CELL_TYPE_ERROR: 		throw new SimpleParserException("Invalid Cell type (Error)");
+		case Cell.CELL_TYPE_FORMULA: 	throw new SimpleParserException("Invalid Cell type (Formula)");
+		default:						return cell.getStringCellValue(); // String case
 		}
 	}
 
-	private Object typeConversion(Class<?> clazz,String val) throws ParseException
+	private Object typeConversion(Class<?> clazz,Object val) throws ParseException
 	{
 		if(val == null) 						return null;
 		String name = clazz.getSimpleName();
-		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	return (short)((val.trim().length() ==0)?   0 : Double.parseDouble(val));
-		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	return (int)  ((val.trim().length() ==0)?   0 : Double.parseDouble(val));
-		if(name.equalsIgnoreCase("Long"))										return (long) ((val.trim().length() ==0)?   0 : Double.parseDouble(val));
-		if(name.equalsIgnoreCase("Float"))										return (float)((val.trim().length() ==0)?   0 : Double.parseDouble(val));
-		if(name.equalsIgnoreCase("Double"))										return 		  ((val.trim().length() ==0)?   0 : Double.parseDouble(val));
+		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	return (short)((Number)val).doubleValue();
+		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	return (int)  ((Number)val).doubleValue();
+		if(name.equalsIgnoreCase("Long"))										return (long) ((Number)val).doubleValue();
+		if(name.equalsIgnoreCase("Float"))										return (float)((Number)val).doubleValue();
+		if(name.equalsIgnoreCase("Double"))										return 		  ((Number)val).doubleValue();
 		if(name.equalsIgnoreCase("Date")){
 			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); // MOVE THIS TO A PROPERTY FILE
-			return dateFormat.parse(val);
+			return dateFormat.parse(val.toString());
 		}
-
-		return val;
+		return val.toString();
 	}
 
 
@@ -284,7 +286,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 				if(type.equalsIgnoreCase("xls"))	return new HSSFWorkbook();
 				else								return new XSSFWorkbook();
 			}
-				
+
 		}catch(IOException i)
 		{
 			throw new SimpleParserException("Error in parsing file using appache.poi lib.. File not a valid excel");
@@ -301,18 +303,18 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		return val+"";
 	}
 
-	private void setCellVal(Cell cell, Class<?> clazz, String val) throws ParseException {
+	private void setCellVal(Cell cell, Class<?> clazz, Object val) throws ParseException {
 		if(val == null) {														cell.setCellValue(""); return;   }
 		String name = clazz.getSimpleName();
-		if(name.equalsIgnoreCase("String") )									{cell.setCellValue(val); return;}
-		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
-		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
-		if(name.equalsIgnoreCase("Long"))										{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
-		if(name.equalsIgnoreCase("Float"))										{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
-		if(name.equalsIgnoreCase("Double"))										{cell.setCellValue(((val.trim().length() ==0)?   0.0D : Double.parseDouble(val))); return;}
+		if(name.equalsIgnoreCase("String") )									{cell.setCellValue(val.toString()); return;}
+		if(name.equalsIgnoreCase("Short") || name.equalsIgnoreCase("short"))	{cell.setCellValue(((Number)val).doubleValue()); return;}
+		if(name.equalsIgnoreCase("Integer") || name.equalsIgnoreCase("int"))	{cell.setCellValue(((Number)val).doubleValue()); return;}
+		if(name.equalsIgnoreCase("Long"))										{cell.setCellValue(((Number)val).doubleValue()); return;}
+		if(name.equalsIgnoreCase("Float"))										{cell.setCellValue(((Number)val).doubleValue()); return;}
+		if(name.equalsIgnoreCase("Double"))										{cell.setCellValue(((Number)val).doubleValue()); return;}
 		if(name.equalsIgnoreCase("Date")){
 			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); 
-			cell.setCellValue(dateFormat.parse(val));
+			cell.setCellValue(dateFormat.parse(val.toString()));
 			return;
 		}
 	}
@@ -333,18 +335,18 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 			Row row = (fileExist)? sheet.getRow(start++) : sheet.createRow(start++);
 			if(row == null) 	throw new SimpleParserException("Row returned null from Sheet for row id "+start);
 			int j=0;
-			uniqueMap = new HashMap<Integer, Map<String,Integer>>();//added fo checking unique constrain violation
+			uniqueMap = new HashMap<Integer, Map<Object,Integer>>();//added fo checking unique constrain violation
 			try{
 				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
 				{
 					Cell cell = (fileExist)?row.getCell(j): row.createCell(j);
 					Field fld = flds.get(j);
 					if(fld == null) continue L1;// ignore columns not mapped to DTO objects
-					String dataStr = (cell == null) ? "" :getStringVal(fld.getClass(), fld.get(obj));// added to prevent null pointer exception for unused columns
+					Object data = (cell == null) ? null : fld.get(obj);// added to prevent null pointer exception for unused columns
 					try{
-						if(unique.get(j) && !dataStr.trim().isEmpty())	checkUnique(dataStr,j); // unique constraint check
-						dataStr=validateAndFormat(dataStr, validators.get(j), writeFormatters.get(j));
-						setCellVal(cell,fld.getType(),dataStr);
+						if(unique.get(j) && data != null)	checkUnique(data,j); // unique constraint check
+						data=validateAndFormat(data, validators.get(j), writeFormatters.get(j));
+						setCellVal(cell,fld.getType(),data);
 					}catch(SimpleParserException p){
 						System.out.println(p.getMessage());
 						err.addColError(new ColErrors(j, p.getMessage()));// col error
@@ -374,7 +376,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 
 
 	public void writeObjectsToNewFile(List<T> obj, String filePath)
-	throws SimpleParserException {
+			throws SimpleParserException {
 		// TODO Auto-generated method stub
 
 	}

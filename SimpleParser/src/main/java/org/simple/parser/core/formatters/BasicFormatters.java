@@ -8,8 +8,8 @@ public interface BasicFormatters {
 
 	public static class ToUpperCase implements CellFormatter{
 
-		public String format(String input) throws Exception{
-
+		public Object format(Object data) throws Exception{
+			String input = (data == null) ? null : data.toString();
 			if(input != null && input.trim().length() > 0)
 				return input.toUpperCase();
 			return input;
@@ -25,7 +25,8 @@ public interface BasicFormatters {
 	public static class FormatDate implements CellFormatter{
 		public static String clientFormat = "DD-MM-YYYY";
 		public static String serverFormat = "YYYY-MM-DD";
-		public String format(String input) throws Exception {
+		public Object format(Object data) throws Exception {
+			String input = (data == null) ? null : data.toString();
 			Date d = new SimpleDateFormat(clientFormat).parse(input);
 			return new SimpleDateFormat(serverFormat).format(d);
 		}

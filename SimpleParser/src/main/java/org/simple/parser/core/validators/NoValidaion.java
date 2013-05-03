@@ -11,7 +11,7 @@ import org.simple.parser.core.annotations.ColumnDef;
  */
 public class NoValidaion implements CellValidator {
 
-	public String valid(String data) {
+	public String valid(Object data) {
 		return null;
 	}
 

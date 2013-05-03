@@ -10,6 +10,6 @@ import org.simple.parser.core.annotations.ColumnDef;
  */
 public interface CellFormatter	{
 	
-	public String format(String input) throws Exception;
+	public Object format(Object input) throws Exception;
 
 }

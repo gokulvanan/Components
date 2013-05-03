@@ -16,5 +16,5 @@ public @interface ParserDef {
 	public int startRow() 		default  0;
 	public int startCol() 		default  0;
 	public int maxNoOfRows()	default  -1;
-	public String dateformat()  default "YYYY-mm-dd";
+	public String dateformat()  default "dd-MM-yyyy";
 }
