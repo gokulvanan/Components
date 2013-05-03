@@ -31,7 +31,7 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 		T obj = null;
 		try{
 			obj = clazz.newInstance();
-			obj.initialize();
+			obj.initialize(null);
 		}catch(InstantiationException i){
 			throw new SimpleParserException(i);
 		}catch (IllegalAccessException e) {
@@ -39,18 +39,36 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 		}
 		return obj;
 	}
+	
+	public static <T extends FileBean<T>> T getBean(Class<T> clazz, File newFile) throws  SimpleParserException{
+		T obj = null;
+		try{
+			obj = clazz.newInstance();
+			obj.initialize(newFile);
+		}catch(InstantiationException i){
+			throw new SimpleParserException(i);
+		}catch (IllegalAccessException e) {
+			throw new SimpleParserException(e);
+		}
+		return obj;
+	}
+	
 	@SuppressWarnings("unchecked")
-	private void initialize() throws SimpleParserException{
+	private void initialize(File newFile) throws SimpleParserException{
 		Class<T> childClass=(Class<T>) this.getClass();
 		ParserDef parserAnno = childClass.getAnnotation(ParserDef.class);
 		if(parserAnno == null)		throw new SimpleParserException("ParserDef Annotation not maped to model");
-		String srcPath=parserAnno.srcFilePath();
-		if(!srcPath.equals( "NULL")){
-			try{
-				srcFile = new File(srcPath);
-			}catch(Exception e){
-				throw new SimpleParserException("Error in reading input file "+e.getMessage());
-			}	
+		if(newFile != null){
+			srcFile = newFile;
+		}else{
+			String srcPath=parserAnno.srcFilePath();
+			if(!srcPath.equals( "NULL")){
+				try{
+					srcFile = new File(srcPath);
+				}catch(Exception e){
+					throw new SimpleParserException("Error in reading input file "+e.getMessage());
+				}	
+			}
 		}
 		try{
 			parser = parserAnno.parser().newInstance();
@@ -64,7 +82,7 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 	@SuppressWarnings("unchecked")
 	public  List<T> read() throws SimpleParserException{
 		if(fileObjs != null)	return fileObjs;
-		if(parser == null || srcFile == null)	initialize();
+		if(parser == null || srcFile == null)	throw new SimpleParserException("Parser not initialized use FileBean.getBean() to get instance of parser");
 		parser.parse(srcFile);
 		fileObjs = parser.getParsedObjects();
 		return fileObjs;
@@ -110,6 +128,7 @@ public class FileBean<T extends IFileBean> implements IFileBean{
 		fileObjs.addAll((Collection<? extends T>) objs);
 
 	}
+
 
 
 

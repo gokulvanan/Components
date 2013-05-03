@@ -8,8 +8,8 @@ import org.simple.parser.core.annotations.ColumnDef;
  * @author gokulvanan
  *
  */
-public interface CellFormatter {
+public interface CellFormatter	{
 	
-	public String format(String input);
+	public String format(String input) throws Exception;
 
 }

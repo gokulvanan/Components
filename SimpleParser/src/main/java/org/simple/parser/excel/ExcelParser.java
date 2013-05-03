@@ -192,7 +192,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	}
 
 	private String validateAndFormat(String data, Class<? extends CellValidator>[] validatorclses,CellFormatter formatter) throws SimpleParserException, InstantiationException, IllegalAccessException{
-
+		try{
 		for(Class<? extends CellValidator> validatorCls : validatorclses){
 			CellValidator validator = validatorCls.newInstance();
 			String errorMsg=validator.valid(data) ;
@@ -201,6 +201,9 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 			}
 		}
 		return formatter.format(data);
+		}catch (Exception e) {
+			throw new SimpleParserException(e.getLocalizedMessage());
+		}
 	}
 
 	private String getCellValAsString(Cell cell) throws SimpleParserException {

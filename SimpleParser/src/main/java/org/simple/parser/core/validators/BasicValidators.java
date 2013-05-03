@@ -1,5 +1,7 @@
 package org.simple.parser.core.validators;
 
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import org.apache.commons.validator.UrlValidator;
@@ -10,7 +12,7 @@ import org.apache.commons.validator.UrlValidator;
  * Time: 11:03 AM
  * To change this template use File | Settings | File Templates.
  */
-public class BasicValidators {
+public interface BasicValidators {
 
     public static class SpecialCharValidator implements CellValidator{
 
@@ -50,10 +52,49 @@ public class BasicValidators {
 
         public String valid(String data){
             try{
-                int val = Integer.parseInt(data);
+                Integer.parseInt(data);
                 return null;
             }catch (Exception e){
                 return new StringBuilder("Cell content is not a valid Integer").toString();
+            }
+        }
+    }
+    
+    public static class LongValidator implements CellValidator{
+
+        public String valid(String data){
+            try{
+                Long.parseLong(data);
+                return null;
+            }catch (Exception e){
+                return new StringBuilder("Cell content is not a valid Long").toString();
+            }
+        }
+    }
+    
+
+    public static class WholeNumberValidator implements CellValidator{
+
+        public String valid(String data){
+            try{
+                long val =Long.parseLong(data);
+                if(val < 0) return "Cell content has a neagative numebr.. only whole numbers are allowed";
+                return null;
+            }catch (Exception e){
+                return "Cell content is not a valid whole number";
+            }
+        }
+    }
+   
+    public static class PositiveDoubleValidator implements CellValidator{
+
+        public String valid(String data){
+            try{
+                double val = Double.parseDouble(data);
+                if(val < 0) return "Cell content has a negative number.. only positive numbers allowed";
+                return null;
+            }catch (Exception e){
+                return "Cell content is not a valid Double";
             }
         }
     }
@@ -67,6 +108,23 @@ public class BasicValidators {
             }catch (Exception e){
                 return new StringBuilder("Cell content is not a valid Double").toString();
             }
+        }
+    }
+    
+    /**
+     * Sample Date validator that check for dates with DD-MM-YYYY format
+     * @author gokulvanan
+     *
+     */
+    public static class DateValidator implements CellValidator{
+    	public static String dateFormat = "DD-MM-YYYY";
+        public String valid(String data) {
+            try{
+            	new SimpleDateFormat().parse(data);
+            	return null;
+            }catch (ParseException e) {
+            	return "Invalid Date format.. Date format should be : "+dateFormat;
+			}
         }
     }
 }
