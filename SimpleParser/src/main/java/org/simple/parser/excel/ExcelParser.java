@@ -141,7 +141,6 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 			if(row == null) 	continue L2; // ignore blank rows
 			int j=0;
 			int emptyCount=1;
-			uniqueMap = new HashMap<Integer, Map<Object,Integer>>();//added fo checking unique constrain violation
 			try{
 				actualRowCount++;
 				L1:for (j = this.startCol; j < this.noOfColumns; j++) 
@@ -178,7 +177,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	}
 
 	private void checkUnique(Object data,int colIndx) throws SimpleParserException{
-
+		uniqueMap = (uniqueMap == null )?  new HashMap<Integer,Map<Object,Integer>>() : uniqueMap;
 		Map<Object,Integer> m = uniqueMap.get(colIndx);
 		if(m== null)
 		{	
