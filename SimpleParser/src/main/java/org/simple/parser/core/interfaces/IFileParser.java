@@ -17,8 +17,6 @@ import org.simple.parser.exceptions.SimpleParserException;
 public interface IFileParser<T extends IFileBean> {
 
 	
-	public void initialize(Properties props) throws SimpleParserException;
-	
 	public void initialize(ParserDef props, Class<T> ouptutDTOClass) throws SimpleParserException;
 	
 	public void parse(File file ) throws SimpleParserException;

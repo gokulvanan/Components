@@ -11,12 +11,9 @@ import java.lang.reflect.Field;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
 
 import org.apache.poi.hssf.usermodel.HSSFWorkbook;
 import org.apache.poi.ss.usermodel.Cell;
@@ -82,22 +79,6 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		}
 	}
 
-	/**
-	 * Initialise parser configurations from property file
-	 */
-	public void initialize(Properties props) throws SimpleParserException  {
-		try{
-			this.noOfColumns= Integer.parseInt(props.getProperty("NO_OF_COLUMNS", "-1"));
-			this.noOfRows=Integer.parseInt(props.getProperty("NO_OF_ROWS", "-1"));
-			this.sheetNo=Integer.parseInt(props.getProperty("SHEET_NO", "0"));
-			this.startRow=Integer.parseInt(props.getProperty("START_ROW", "0"));
-			this.startCol=Integer.parseInt(props.getProperty("START_COL", "0"));
-			this.maxNoOfRows=Integer.parseInt(props.getProperty("MAX_ROWS", "-1"));
-		}catch (Exception e) {
-			throw new SimpleParserException("Error in configuration msg"+e.getMessage());
-		}
-	}
-
 	public List<T> getParsedObjects() {
 		return this.fileObjList;
 	}
@@ -117,7 +98,7 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 
 		fileObjList= new ArrayList<T>();
 		errorList=new ArrayList<ErrorBean>();
-
+		uniqueMap = new HashMap<Integer,Map<Object,Integer>>();
 
 		Sheet sheet = w.getSheetAt(sheetNo);
 		noOfRows =(noOfRows == -1) ? sheet.getLastRowNum()+1 : noOfRows;
@@ -177,7 +158,6 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 	}
 
 	private void checkUnique(Object data,int colIndx) throws SimpleParserException{
-		uniqueMap = (uniqueMap == null )?  new HashMap<Integer,Map<Object,Integer>>() : uniqueMap;
 		Map<Object,Integer> m = uniqueMap.get(colIndx);
 		if(m== null)
 		{	
@@ -292,15 +272,6 @@ public class ExcelParser<T extends IFileBean> implements IFileParser<T>{
 		}
 	}
 
-	private String getStringVal(Class<? extends Field> clazz,Object val) {
-		if(val == null) 	return "";
-		String name = clazz.getSimpleName();
-		if(name.equalsIgnoreCase("Date")){
-			SimpleDateFormat dateFormat = new SimpleDateFormat(this.dateFormat); 
-			return(dateFormat.format((Date) val));
-		}
-		return val+"";
-	}
 
 	private void setCellVal(Cell cell, Class<?> clazz, Object val) throws ParseException {
 		if(val == null) {														cell.setCellValue(""); return;   }

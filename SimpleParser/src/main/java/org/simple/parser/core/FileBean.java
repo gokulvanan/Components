@@ -1,15 +1,13 @@
 package org.simple.parser.core;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Properties;
 
 import org.simple.parser.core.annotations.ParserDef;
-import org.simple.parser.core.interfaces.IFileParser;
 import org.simple.parser.core.interfaces.IFileBean;
+import org.simple.parser.core.interfaces.IFileParser;
 import org.simple.parser.exceptions.SimpleParserException;
 
 
